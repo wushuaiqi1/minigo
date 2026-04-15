@@ -177,16 +177,95 @@ logrus.SetOutput(io.MultiWriter(os.Stdout, file))
 
 钩子允许在日志记录时执行额外的操作，例如发送邮件、记录到数据库等。
 
-### 5.1 自定义钩子
+### 5.1 自定义 webhook 钩子
+
+下面是一个完整的 Slack webhook 钩子实现示例：
 
 ```go
+import (
+    "bytes"
+    "encoding/json"
+    "net/http"
+    "time"
+    "github.com/sirupsen/logrus"
+)
+
 type SlackHook struct {
     webhookURL string
+    channel    string
+    username   string
+}
+
+// SlackMessage 定义 Slack 消息格式
+type SlackMessage struct {
+    Channel   string       `json:"channel"`
+    Username  string       `json:"username"`
+    Text      string       `json:"text"`
+    IconEmoji string       `json:"icon_emoji,omitempty"`
+    Attachments []Attachment `json:"attachments,omitempty"`
+}
+
+// Attachment 定义 Slack 消息附件
+type Attachment struct {
+    Color    string `json:"color"`
+    Title    string `json:"title"`
+    Text     string `json:"text"`
+    Ts       int64  `json:"ts"`
+}
+
+func NewSlackHook(webhookURL, channel, username string) *SlackHook {
+    return &SlackHook{
+        webhookURL: webhookURL,
+        channel:    channel,
+        username:   username,
+    }
 }
 
 func (h *SlackHook) Fire(entry *logrus.Entry) error {
-    // 实现发送到 Slack 的逻辑
-    return nil
+    // 构建 Slack 消息
+    message := SlackMessage{
+        Channel:  h.channel,
+        Username: h.username,
+        Text:     entry.Message,
+        IconEmoji: ":warning:",
+    }
+
+    // 根据日志级别设置颜色
+    var color string
+    switch entry.Level {
+    case logrus.DebugLevel:
+        color = "#9CA3AF" // 灰色
+    case logrus.InfoLevel:
+        color = "#3B82F6" // 蓝色
+    case logrus.WarnLevel:
+        color = "#F59E0B" // 黄色
+    case logrus.ErrorLevel:
+        color = "#EF4444" // 红色
+    case logrus.FatalLevel:
+        color = "#DC2626" // 深红色
+    case logrus.PanicLevel:
+        color = "#7F1D1D" // 暗红色
+    }
+
+    // 添加附件，包含详细信息
+    attachment := Attachment{
+        Color: color,
+        Title: entry.Level.String(),
+        Text:  entry.Message,
+        Ts:    time.Now().Unix(),
+    }
+    message.Attachments = append(message.Attachments, attachment)
+
+    // 序列化消息
+    payload, err := json.Marshal(message)
+    if err != nil {
+        return err
+    }
+
+    // 发送 HTTP 请求
+    client := &http.Client{Timeout: 5 * time.Second}
+    _, err = client.Post(h.webhookURL, "application/json", bytes.NewBuffer(payload))
+    return err
 }
 
 func (h *SlackHook) Levels() []logrus.Level {
@@ -194,16 +273,46 @@ func (h *SlackHook) Levels() []logrus.Level {
 }
 
 // 添加钩子
-logrus.AddHook(&SlackHook{webhookURL: "https://hooks.slack.com/services/your/webhook/url"})
+slackHook := NewSlackHook(
+    "https://hooks.slack.com/services/your/webhook/url",
+    "#logs",
+    "App Logger",
+)
+logrus.AddHook(slackHook)
 ```
 
-### 5.2 第三方钩子
+### 5.2 第三方 webhook 钩子
 
-logrus 生态中有很多第三方钩子，例如：
+logrus 生态中有很多第三方 webhook 钩子，例如：
 
 - `logrus-papertrail-hook`：发送日志到 Papertrail
 - `logrus-fluent-hook`：发送日志到 Fluentd
 - `logrus-cloudwatch-logs`：发送日志到 AWS CloudWatch
+- `logrus-slack-hook`：发送日志到 Slack
+- `logrus-discord-hook`：发送日志到 Discord
+- `logrus-microsoft-teams-hook`：发送日志到 Microsoft Teams
+
+### 5.3 Webhook 配置最佳实践
+
+1. **错误处理**：确保 webhook 发送失败不会影响应用运行
+2. **超时设置**：为 HTTP 请求设置合理的超时时间
+3. **异步处理**：考虑使用 goroutine 异步发送 webhook，避免阻塞主流程
+4. **批量发送**：对于高频日志，考虑批量发送以减少 HTTP 请求次数
+5. **重试机制**：添加简单的重试逻辑，提高可靠性
+6. **安全考虑**：确保 webhook URL 不被硬编码在代码中，使用环境变量或配置文件
+
+#### 异步 webhook 示例
+
+```go
+func (h *SlackHook) Fire(entry *logrus.Entry) error {
+    // 异步发送
+    go func() {
+        // 构建和发送消息的逻辑
+        // ...
+    }()
+    return nil
+}
+```
 
 ---
 
