@@ -177,84 +177,81 @@ logrus.SetOutput(io.MultiWriter(os.Stdout, file))
 
 钩子允许在日志记录时执行额外的操作，例如发送邮件、记录到数据库等。
 
-### 5.1 自定义 webhook 钩子
+### 5.1 飞书群通知钩子
 
-下面是一个完整的 Slack webhook 钩子实现示例：
+下面是一个完整的飞书群通知 webhook 钩子实现示例：
 
 ```go
 import (
     "bytes"
     "encoding/json"
+    "fmt"
     "net/http"
     "time"
     "github.com/sirupsen/logrus"
 )
 
-type SlackHook struct {
+// FeishuHook 飞书群通知钩子
+type FeishuHook struct {
     webhookURL string
-    channel    string
-    username   string
+    title      string
 }
 
-// SlackMessage 定义 Slack 消息格式
-type SlackMessage struct {
-    Channel   string       `json:"channel"`
-    Username  string       `json:"username"`
-    Text      string       `json:"text"`
-    IconEmoji string       `json:"icon_emoji,omitempty"`
-    Attachments []Attachment `json:"attachments,omitempty"`
+// FeishuMessage 飞书消息格式
+type FeishuMessage struct {
+    MsgType string `json:"msg_type"`
+    Content Content `json:"content"`
 }
 
-// Attachment 定义 Slack 消息附件
-type Attachment struct {
-    Color    string `json:"color"`
-    Title    string `json:"title"`
-    Text     string `json:"text"`
-    Ts       int64  `json:"ts"`
+// Content 消息内容
+type Content struct {
+    Post Post `json:"post"`
 }
 
-func NewSlackHook(webhookURL, channel, username string) *SlackHook {
-    return &SlackHook{
+// Post 飞书富文本消息
+type Post struct {
+    ZhCN ZhCN `json:"zh_cn"`
+}
+
+// ZhCN 中文内容
+type ZhCN struct {
+    Title   string     `json:"title"`
+    Content [][]string `json:"content"`
+}
+
+// NewFeishuHook 创建飞书钩子
+func NewFeishuHook(webhookURL, title string) *FeishuHook {
+    return &FeishuHook{
         webhookURL: webhookURL,
-        channel:    channel,
-        username:   username,
+        title:      title,
     }
 }
 
-func (h *SlackHook) Fire(entry *logrus.Entry) error {
-    // 构建 Slack 消息
-    message := SlackMessage{
-        Channel:  h.channel,
-        Username: h.username,
-        Text:     entry.Message,
-        IconEmoji: ":warning:",
+// Fire 触发钩子
+func (h *FeishuHook) Fire(entry *logrus.Entry) error {
+    // 构建飞书消息
+    content := [][]string{
+        {"**日志级别**", entry.Level.String()},
+        {"**消息内容**", entry.Message},
+        {"**时间**", time.Now().Format("2006-01-02 15:04:05")},
     }
 
-    // 根据日志级别设置颜色
-    var color string
-    switch entry.Level {
-    case logrus.DebugLevel:
-        color = "#9CA3AF" // 灰色
-    case logrus.InfoLevel:
-        color = "#3B82F6" // 蓝色
-    case logrus.WarnLevel:
-        color = "#F59E0B" // 黄色
-    case logrus.ErrorLevel:
-        color = "#EF4444" // 红色
-    case logrus.FatalLevel:
-        color = "#DC2626" // 深红色
-    case logrus.PanicLevel:
-        color = "#7F1D1D" // 暗红色
+    // 添加额外字段
+    for key, value := range entry.Data {
+        content = append(content, []string{"**" + key + "**", fmt.Sprintf("%v", value)})
     }
 
-    // 添加附件，包含详细信息
-    attachment := Attachment{
-        Color: color,
-        Title: entry.Level.String(),
-        Text:  entry.Message,
-        Ts:    time.Now().Unix(),
+    message := FeishuMessage{
+        MsgType: "post",
+        Content: Content{
+            Post: Post{
+                ZhCN: ZhCN{
+                    Title:   h.title,
+                    Content: content,
+                },
+            },
+        },
     }
-    message.Attachments = append(message.Attachments, attachment)
 
     // 序列化消息
     payload, err := json.Marshal(message)
@@ -268,43 +265,32 @@ func (h *SlackHook) Fire(entry *logrus.Entry) error {
     return err
 }
 
-func (h *SlackHook) Levels() []logrus.Level {
+// Levels 返回需要触发的日志级别
+func (h *FeishuHook) Levels() []logrus.Level {
     return []logrus.Level{logrus.ErrorLevel, logrus.FatalLevel, logrus.PanicLevel}
 }
 
 // 添加钩子
-slackHook := NewSlackHook(
-    "https://hooks.slack.com/services/your/webhook/url",
-    "#logs",
-    "App Logger",
+feishuHook := NewFeishuHook(
+    "https://open.feishu.cn/open-apis/bot/v2/hook/your-webhook-url",
+    "应用日志通知",
 )
-logrus.AddHook(slackHook)
+logrus.AddHook(feishuHook)
 ```
 
-### 5.2 第三方 webhook 钩子
-
-logrus 生态中有很多第三方 webhook 钩子，例如：
-
-- `logrus-papertrail-hook`：发送日志到 Papertrail
-- `logrus-fluent-hook`：发送日志到 Fluentd
-- `logrus-cloudwatch-logs`：发送日志到 AWS CloudWatch
-- `logrus-slack-hook`：发送日志到 Slack
-- `logrus-discord-hook`：发送日志到 Discord
-- `logrus-microsoft-teams-hook`：发送日志到 Microsoft Teams
-
-### 5.3 Webhook 配置最佳实践
+### 5.2 飞书群通知配置最佳实践
 
 1. **错误处理**：确保 webhook 发送失败不会影响应用运行
-2. **超时设置**：为 HTTP 请求设置合理的超时时间
-3. **异步处理**：考虑使用 goroutine 异步发送 webhook，避免阻塞主流程
-4. **批量发送**：对于高频日志，考虑批量发送以减少 HTTP 请求次数
-5. **重试机制**：添加简单的重试逻辑，提高可靠性
-6. **安全考虑**：确保 webhook URL 不被硬编码在代码中，使用环境变量或配置文件
+2. **超时设置**：为 HTTP 请求设置合理的超时时间（建议 5 秒）
+3. **异步处理**：使用 goroutine 异步发送通知，避免阻塞主流程
+4. **安全考虑**：webhook URL 应存储在环境变量或配置文件中，不要硬编码
+5. **消息格式**：保持消息格式清晰，包含关键信息
+6. **重试机制**：可添加简单的重试逻辑，提高可靠性
 
-#### 异步 webhook 示例
+#### 异步飞书通知示例
 
 ```go
-func (h *SlackHook) Fire(entry *logrus.Entry) error {
+func (h *FeishuHook) Fire(entry *logrus.Entry) error {
     // 异步发送
     go func() {
         // 构建和发送消息的逻辑
@@ -313,6 +299,20 @@ func (h *SlackHook) Fire(entry *logrus.Entry) error {
     return nil
 }
 ```
+
+### 5.3 飞书群机器人设置
+
+1. **创建飞书群机器人**：
+   - 打开飞书群聊，点击群设置
+   - 选择「群机器人」→「添加机器人」→「自定义」
+   - 填写机器人名称，获取 webhook URL
+
+2. **权限设置**：
+   - 确保机器人有发送消息的权限
+   - 如需发送卡片消息，需开启相应权限
+
+3. **测试通知**：
+   - 部署钩子后，可通过触发错误日志测试通知是否正常
 
 ---
 
