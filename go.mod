@@ -6,6 +6,8 @@ require (
 	github.com/kataras/iris/v12 v12.2.11
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.18.2
+	github.com/golang-jwt/jwt/v5 v5.2.3
+	github.com/sqids/sqids-go v0.4.1
 )
 
 require (
