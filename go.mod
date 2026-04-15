@@ -3,10 +3,11 @@ module minigo
 go 1.23.0
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.2.3
 	github.com/kataras/iris/v12 v12.2.11
+	github.com/magiconair/properties v1.8.7
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.18.2
-	github.com/golang-jwt/jwt/v5 v5.2.3
 	github.com/sqids/sqids-go v0.4.1
 )
 
@@ -35,7 +36,6 @@ require (
 	github.com/kataras/sitemap v0.0.6 // indirect
 	github.com/kataras/tunnel v0.0.4 // indirect
 	github.com/klauspost/compress v1.17.7 // indirect
-	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailgun/raymond/v2 v2.0.48 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.26 // indirect
