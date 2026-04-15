@@ -1,9 +1,11 @@
 package utils
 
 import (
+	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -29,6 +31,7 @@ func GenerateJWT(uid int64) (string, error) {
 		encodeUid,
 		jwt.RegisteredClaims{
 			Issuer:    issuer,
+			Subject:   encodeUid,
 			ExpiresAt: jwt.NewNumericDate(expireTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
@@ -36,28 +39,32 @@ func GenerateJWT(uid int64) (string, error) {
 	}
 	// 使用指定的签名方法创建签名对象
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, payload)
-	// token转换为字符串的形式
+	// token转换为字符串的形式 携带签名
 	return token.SignedString(secret)
 }
 
 func ParseJWT(tokenString string) (*JwtClaims, error) {
 	// 解析token
 	token, err := jwt.ParseWithClaims(tokenString, &JwtClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
 		return secret, nil
 	})
 	if err != nil {
-		return nil, err
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			return nil, errors.New("token has expired")
+		}
+		if errors.Is(err, jwt.ErrSignatureInvalid) {
+			return nil, errors.New("invalid token signature")
+		}
+		logrus.WithError(err).Warn("Failed to parse JWT token")
+		return nil, errors.New("invalid token")
 	}
-	// 判断Payload是否过期
+
 	claims, ok := token.Claims.(*JwtClaims)
-	if !ok {
-		return nil, jwt.ErrSignatureInvalid
+	if !ok || !token.Valid {
+		return nil, errors.New("invalid token claims")
 	}
-	if claims.ExpiresAt.Time.Before(time.Now()) {
-		return nil, jwt.ErrTokenExpired
-	}
-	if token.Valid {
-		return claims, nil
-	}
-	return nil, jwt.ErrSignatureInvalid
+	return claims, nil
 }
