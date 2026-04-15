@@ -1,6 +1,8 @@
 package main
 
 import (
+	"minigo/config"
+
 	"github.com/kataras/iris/v12"
 )
 
@@ -16,9 +18,10 @@ func main() {
 		})
 	})
 
-	go func() {
-		app.Listen(":8080")
-	}()
+	err := app.Listen(config.GetConfigInstance().Server.Port)
+	if err != nil {
+		return
+	}
 }
 
 func setRoute() {
