@@ -1,0 +1,3 @@
+server:
+  env: production
+  port: 9001

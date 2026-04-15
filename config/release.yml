@@ -1,0 +1,3 @@
+server:
+  env:  release
+  port: 9001
