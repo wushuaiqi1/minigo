@@ -144,6 +144,33 @@ if err != nil {
 logrus.SetOutput(io.MultiWriter(os.Stdout, file))
 ```
 
+#### 配置执行时机
+
+**重要**：输出目标的配置只需要执行一次，而不是每次输出日志时都执行。建议在应用启动时完成配置：
+
+1. **在 `init()` 函数中配置**：
+   ```go
+   func init() {
+       // 设置日志级别
+       logrus.SetLevel(logrus.InfoLevel)
+       
+       // 设置输出格式
+       logrus.SetFormatter(&logrus.JSONFormatter{})
+       
+       // 同时输出到控制台和文件
+       file, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+       if err != nil {
+           logrus.Fatal("Failed to open log file", err)
+       }
+       logrus.SetOutput(io.MultiWriter(os.Stdout, file))
+   }
+   ```
+
+2. **使用日志包装器**：
+   创建一个专门的日志包，在初始化时配置一次，然后在整个应用中使用（详见 6.2 节）。
+
+这样配置后，所有的日志输出都会自动同时发送到控制台和文件，无需每次输出日志时重复配置。
+
 ---
 
 ## 5. 钩子（Hooks）
