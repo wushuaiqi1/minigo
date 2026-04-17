@@ -13,30 +13,37 @@ import (
 )
 
 func main() {
-	app := iris.New()
+	app := buildIris()
+	setRoute(app)
+	runServer(app)
+	gracefulShutdown(app)
+}
 
+// 构建Iris实例
+func buildIris() *iris.Application {
+	app := iris.New()
 	// 启用最佳压缩效果
 	app.Use(iris.Compression)
+	return app
+}
 
-	app.Get("/", func(ctx iris.Context) {
-		ctx.JSON(iris.Map{
-			"message": "Hello from Iris!",
-		})
+// 设置路由
+func setRoute(app *iris.Application) {
+	group := app.Party("/api")
+
+	group.Get("/hello", func(ctx iris.Context) {
+		ctx.JSON(iris.Map{"message": "Hello, World!"})
 	})
+}
 
-	// 在 goroutine 中启动服务器
+// 启动服务器
+func runServer(app *iris.Application) {
 	go func() {
 		logrus.WithFields(logrus.Fields{"port": config.GetConfigInstance().Server.Port}).Info("Server is starting")
 		if err := app.Listen(config.GetConfigInstance().Server.Port); err != nil {
 			logrus.WithError(err).Error("Server error")
 		}
 	}()
-
-	gracefulShutdown(app)
-}
-
-func setRoute() {
-
 }
 
 // 优雅关闭服务器
