@@ -10,6 +10,7 @@
 8. Proxyman：抓包工具完美平替Charles
 9. SwitchHost：本地域名IP映射
 10. Snipaste：桌面截图软件
+11. TinyRDM: RedisGUI强推比DataGrip好用
 
 # 常见问题
 
